@@ -17,5 +17,4 @@ extern "C"
 static HANDLE hDevice = NULL;
 
 HRESULT SplitLockAppIntialization(const GUID* ptrGuid);
-HRESULT SplitLockAppCleanup();
 HRESULT SplitLockAppDeviceIoControl(DWORD dwIoControlCode);

@@ -32,7 +32,7 @@ int main() {
 
 	{
 		SplitLockAppDeviceIoControl(IOCTL_SPLITLOCK_CR0_AM_SET);
-		SplitLockAppDeviceIoControl(IOCTL_SPLITLOCK_EFLAG_AC_SET);
+		SplitLockAppDeviceIoControl(IOCTL_SPLITLOCK_EFLAGS_AC_SET);
 
 		// Windows Data Alignment on IPF, x86, and x64: https://archive.md/VZWAf
 		__try
@@ -48,11 +48,15 @@ int main() {
 			std::cout << "Executing Handler" << std::endl;
 		}
 
-		SplitLockAppDeviceIoControl(IOCTL_SPLITLOCK_EFLAG_AC_CLEAR);
+		SplitLockAppDeviceIoControl(IOCTL_SPLITLOCK_EFLAGS_AC_CLEAR);
 		SplitLockAppDeviceIoControl(IOCTL_SPLITLOCK_CR0_AM_CLEAR);
 	}
 
-	SplitLockAppCleanup();
+	if (hDevice != NULL)
+	{
+		CloseHandle(hDevice);
+		hDevice = NULL;
+	}
 
 	return hResult;
 }
@@ -133,17 +137,6 @@ HRESULT SplitLockAppIntialization(const GUID* ptrGuid) {
 	return hResult;
 }
 
-HRESULT SplitLockAppCleanup() {
-
-	if (hDevice != NULL)
-	{
-		CloseHandle(hDevice);
-		hDevice = NULL;
-	}
-
-	return S_OK;
-}
-
 HRESULT SplitLockAppDeviceIoControl(DWORD dwIoControlCode) {
 	
 	DWORD dwBytesReturned = 0;
@@ -157,7 +150,7 @@ HRESULT SplitLockAppDeviceIoControl(DWORD dwIoControlCode) {
 		}
 		else
 		{
-			DbgPrintApp("CR0 register is only accessible in kernel mode.");
+			goto CR0_AM_READ;
 		}
 		break;
 
@@ -168,12 +161,11 @@ HRESULT SplitLockAppDeviceIoControl(DWORD dwIoControlCode) {
 		}
 		else
 		{
-			DbgPrintApp("CR0 register is only accessible in kernel mode.");
-
+			goto CR0_AM_READ;
 		}
 		break;
 
-	case IOCTL_SPLITLOCK_EFLAG_AC_SET:
+	case IOCTL_SPLITLOCK_EFLAGS_AC_SET:
 		if (!DeviceIoControl(hDevice, dwIoControlCode, NULL, 0, NULL, 0, &dwBytesReturned, NULL))
 		{
 			DbgPrintApp("IOCTL_SPLITLOCK_EFLAG_SET failed.");
@@ -185,11 +177,11 @@ HRESULT SplitLockAppDeviceIoControl(DWORD dwIoControlCode) {
 #else
 			EFLAGACEnable();
 #endif
-			std::cout << "EFLAGS AC flag is set." << std::endl;
+			goto EFLAGS_AC_READ;
 		}
 		break;
 
-	case IOCTL_SPLITLOCK_EFLAG_AC_CLEAR:
+	case IOCTL_SPLITLOCK_EFLAGS_AC_CLEAR:
 		if (!DeviceIoControl(hDevice, dwIoControlCode, NULL, 0, NULL, 0, &dwBytesReturned, NULL))
 		{
 			DbgPrintApp("IOCTL_SPLITLOCK_EFLAG_CLEAR failed.");
@@ -201,7 +193,7 @@ HRESULT SplitLockAppDeviceIoControl(DWORD dwIoControlCode) {
 #else
 			EFLAGACDisable();
 #endif
-			std::cout << "EFLAGS AC flag is clear." << std::endl;
+			goto EFLAGS_AC_READ;
 		}
 		break;
 
@@ -212,26 +204,21 @@ HRESULT SplitLockAppDeviceIoControl(DWORD dwIoControlCode) {
 		}
 		else
 		{
+			CR0_AM_READ:
 			DbgPrintApp("CR0 register is only accessible in kernel mode.");
 		}
 		break;
 
-	case IOCTL_SPLITLOCK_EFLAG_AC_READ:
+	case IOCTL_SPLITLOCK_EFLAGS_AC_READ:
 		if (!DeviceIoControl(hDevice, dwIoControlCode, NULL, 0, NULL, 0, &dwBytesReturned, NULL))
 		{
 			DbgPrintApp("IOCTL_SPLITLOCK_EFLAG_READ failed.");
 		}
 		else
 		{
+			EFLAGS_AC_READ:
 #ifdef __INTRIN_H_
-			if (__readeflags() & 0x40000)
-			{
-				std::cout << "EFLAGS AC flag is set." << std::endl;
-			}
-			else
-			{
-				std::cout << "EFLAGS AC flag is clear." << std::endl;
-			}
+			std::cout << "EFLAGS AC flag is " << (__readeflags() & 0x40000 ? "set." : "clear.") << std::endl;
 #else
 			std::cout << "IOCTL_SPLITLOCK_EFLAG_READ is only available wtih an intrinsic." << std::endl;
 #endif

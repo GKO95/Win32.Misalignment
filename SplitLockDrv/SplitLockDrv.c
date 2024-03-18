@@ -219,14 +219,14 @@ NTSTATUS SplitLockDrvDispatchDeviceControl(PDEVICE_OBJECT DeviceObject, PIRP Irp
 		Status = STATUS_SUCCESS;
 		break;
 
-	case IOCTL_SPLITLOCK_EFLAG_AC_SET:
+	case IOCTL_SPLITLOCK_EFLAGS_AC_SET:
 		DbgPrintDrv("SplitLockDrvDispatchDeviceControl: IOCTL_SPLITLOCK_EFLAG_SET");
 
 		DbgPrintDrv("EFLAGS register is accessible in both user and kernel mode.");
 		Status = STATUS_SUCCESS;
 		break;
 
-	case IOCTL_SPLITLOCK_EFLAG_AC_CLEAR:
+	case IOCTL_SPLITLOCK_EFLAGS_AC_CLEAR:
 		DbgPrintDrv("SplitLockDispatchDeviceControl: IOCTL_SPLITLOCK_EFLAG_CLEAR");
 		
 		DbgPrintDrv("EFLAGS register is accessible in both user and kernel mode.");
@@ -250,7 +250,7 @@ NTSTATUS SplitLockDrvDispatchDeviceControl(PDEVICE_OBJECT DeviceObject, PIRP Irp
 #endif
 		break;
 
-	case IOCTL_SPLITLOCK_EFLAG_AC_READ:
+	case IOCTL_SPLITLOCK_EFLAGS_AC_READ:
 		DbgPrintDrv("SplitLockDispatchDeviceControl: IOCTL_SPLITLOCK_EFLAG_READ\n");
 
 		DbgPrintDrv("EFLAGS register is accessible in both user and kernel mode.");
