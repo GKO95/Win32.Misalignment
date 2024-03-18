@@ -37,5 +37,8 @@
     <ClInclude Include="SplitLockDrv.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="SplitLock.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

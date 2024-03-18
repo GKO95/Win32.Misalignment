@@ -1,26 +1,39 @@
 #include "SplitLockDrv.h"
 
+VOID DbgPrintDrv(const char* str)
+{
+#ifdef DBG
+	DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL, "[SplitLockDrv] %s\n", str);
+#else
+	UNREFERENCED_PARAMETER(str);
+#endif
+}
+
 NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
 {
+	DbgPrintDrv("DriverEntry");
 	UNREFERENCED_PARAMETER(RegistryPath);
-	DriverObject->DriverUnload = SplitLockDrvUnload;
-	DriverObject->DriverExtension->AddDevice = SplitLockDrvAddDevice;
-	DriverObject->MajorFunction[IRP_MJ_PNP] = SplitLockDrvDispatchPnP;
-	DriverObject->MajorFunction[IRP_MJ_CREATE] = SplitLockDrvDispatchCreateClose;
-	DriverObject->MajorFunction[IRP_MJ_CLOSE] = SplitLockDrvDispatchCreateClose;
-	DriverObject->MajorFunction[IRP_MJ_DEVICE_CONTROL] = SplitLockDrvDispatchDeviceControl;
+
+	DriverObject->DriverUnload							= SplitLockDrvUnload;
+	DriverObject->DriverExtension->AddDevice			= SplitLockDrvAddDevice;
+	DriverObject->MajorFunction[IRP_MJ_PNP]				= SplitLockDrvDispatchPnP;
+	DriverObject->MajorFunction[IRP_MJ_CREATE]			= SplitLockDrvDispatchCreateClose;
+	DriverObject->MajorFunction[IRP_MJ_CLOSE]			= SplitLockDrvDispatchCreateClose;
+	DriverObject->MajorFunction[IRP_MJ_DEVICE_CONTROL]	= SplitLockDrvDispatchDeviceControl;
+
 	return STATUS_SUCCESS;
 }
 
 VOID SplitLockDrvUnload(PDRIVER_OBJECT DriverObject)
 {
-	DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL, "SplitLockDrvUnload\n");
+	DbgPrintDrv("SplitLockDrvUnload");
 	UNREFERENCED_PARAMETER(DriverObject);
 }
 
 NTSTATUS SplitLockDrvAddDevice(PDRIVER_OBJECT DriverObject, PDEVICE_OBJECT PhysicalDeviceObject)
-{
-	DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL, "SplitLockDrvAddDevice\n");
+{	// AddDevice Routines in Function or Filter Drivers: https://learn.microsoft.com/en-us/windows-hardware/drivers/kernel/adddevice-routines-in-function-or-filter-drivers
+
+	DbgPrintDrv("SplitLockDrvAddDevice");
 	UNREFERENCED_PARAMETER(PhysicalDeviceObject);
 
 	// Create a device object
@@ -43,6 +56,8 @@ NTSTATUS SplitLockDrvAddDevice(PDRIVER_OBJECT DriverObject, PDEVICE_OBJECT Physi
 	}
 
 	// Set the flags and characteristics
+	// * Buffered I/O: https://learn.microsoft.com/en-us/windows-hardware/drivers/kernel/using-buffered-i-o
+	// * Set the DO_POWER_PAGABLE flag: https://learn.microsoft.com/en-us/windows-hardware/drivers/kernel/setting-device-object-flags-for-power-management
 	DeviceObject->Flags |= DO_BUFFERED_IO | DO_POWER_PAGABLE;
 
 	// Attach the device object
@@ -53,15 +68,25 @@ NTSTATUS SplitLockDrvAddDevice(PDRIVER_OBJECT DriverObject, PDEVICE_OBJECT Physi
 		return STATUS_NO_SUCH_DEVICE;
 	}
 
-	// Set the initializing flag to false
+	// Clear the initializing flag: https://learn.microsoft.com/en-us/windows-hardware/drivers/ifs/clearing-the-do-device-initializing-flag
 	DeviceObject->Flags &= ~DO_DEVICE_INITIALIZING;
 
 	return STATUS_SUCCESS;
 }
 
+NTSTATUS SplitLockStartDeviceCompletion(PDEVICE_OBJECT DeviceObject, PIRP Irp, PVOID Context)
+{
+	DbgPrintDrv("SplitLockStartDeviceCompletion");
+	UNREFERENCED_PARAMETER(DeviceObject);
+	UNREFERENCED_PARAMETER(Irp);
+
+	KeSetEvent((PKEVENT)Context, IO_NO_INCREMENT, FALSE);
+	return STATUS_MORE_PROCESSING_REQUIRED;
+}
+
 NTSTATUS SplitLockDrvDispatchPnP(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 {
-	DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL, "SplitLockDrvDispatchPnP\n");
+	DbgPrintDrv("SplitLockDrvDispatchPnP");
 
 	PSPLITLOCK_EXTENSION DeviceExtension = (PSPLITLOCK_EXTENSION)DeviceObject->DeviceExtension;
 	PIO_STACK_LOCATION IrpStack = IoGetCurrentIrpStackLocation(Irp);
@@ -72,8 +97,10 @@ NTSTATUS SplitLockDrvDispatchPnP(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 
 	switch (MinorFunction)
 	{
-	case IRP_MN_START_DEVICE:
-		DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL, "SplitLockDrvDispatchPnP: IRP_MN_START_DEVICE\n");
+	case IRP_MN_START_DEVICE:	// IRP_MN_START_DEVICE: https://learn.microsoft.com/en-us/windows-hardware/drivers/kernel/irp-mn-start-device
+								// This IRP must be handled first by the parent bus driver for a device and then by each higher driver in the device stack.
+
+		DbgPrintDrv("SplitLockDrvDispatchPnP: IRP_MN_START_DEVICE");
 
 		// Set the event and copy the IRP stack location
 		KeInitializeEvent(&Event, NotificationEvent, FALSE);
@@ -102,8 +129,10 @@ NTSTATUS SplitLockDrvDispatchPnP(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 		}
 		break;
 
-	case IRP_MN_REMOVE_DEVICE:
-		DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL, "SplitLockDrvDispatchPnP: IRP_MN_REMOVE_DEVICE\n");
+	case IRP_MN_REMOVE_DEVICE:	// IRP_MN_REMOVE_DEVICE: https://learn.microsoft.com/en-us/windows-hardware/drivers/kernel/irp-mn-remove-device
+								// This IRP is sent to the drivers for a device when the device is being removed from the system.
+
+		DbgPrintDrv("SplitLockDrvDispatchPnP: IRP_MN_REMOVE_DEVICE");
 
 		// Set the device interface state, free the symbolic link name, detach the device, and delete the device
 		IoSetDeviceInterfaceState(&DeviceExtension->SymbolicLinkName, FALSE);
@@ -118,7 +147,7 @@ NTSTATUS SplitLockDrvDispatchPnP(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 		break;
 
 	default:
-		DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL, "SplitLockDrvDispatchPnP: IRP_MN_XXX\n");
+		DbgPrintDrv("SplitLockDrvDispatchPnP: IRP_MN_XXX");
 		IoCompleteRequest(Irp, IO_NO_INCREMENT);
 		break;
 	}
@@ -126,18 +155,9 @@ NTSTATUS SplitLockDrvDispatchPnP(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 	return Status;
 }
 
-NTSTATUS SplitLockStartDeviceCompletion(PDEVICE_OBJECT DeviceObject, PIRP Irp, PVOID Context)
-{
-	UNREFERENCED_PARAMETER(DeviceObject);
-	UNREFERENCED_PARAMETER(Irp);
-
-	KeSetEvent((PKEVENT)Context, IO_NO_INCREMENT, FALSE);
-	return STATUS_MORE_PROCESSING_REQUIRED;
-}
-
 NTSTATUS SplitLockDrvDispatchCreateClose(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 {
-	DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL, "SplitLockDrvDispatchCreateClose\n");
+	DbgPrintDrv("SplitLockDrvDispatchCreateClose");
 
 	PSPLITLOCK_EXTENSION DeviceExtension = (PSPLITLOCK_EXTENSION)DeviceObject->DeviceExtension;
 	PIO_STACK_LOCATION IrpStack = IoGetCurrentIrpStackLocation(Irp);
@@ -147,17 +167,17 @@ NTSTATUS SplitLockDrvDispatchCreateClose(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 	switch (IrpStack->MajorFunction)
 	{
 	case IRP_MJ_CREATE:
-		DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL, "SplitLockDrvDispatchCreateClose: IRP_MJ_CREATE\n");
+		DbgPrintDrv("SplitLockDrvDispatchCreateClose: IRP_MJ_CREATE");
 		Irp->IoStatus.Information = 0;
 		break;
 
 	case IRP_MJ_CLOSE:
-		DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL, "SplitLockDrvDispatchCreateClose: IRP_MJ_CLOSE\n");
+		DbgPrintDrv("SplitLockDrvDispatchCreateClose: IRP_MJ_CLOSE");
 		Irp->IoStatus.Information = 0;
 		break;
 
 	default:
-		DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL, "SplitLockDrvDispatchCreateClose: IRP_MJ_XXX\n");
+		DbgPrintDrv("SplitLockDrvDispatchCreateClose: IRP_MJ_XXX");
 		break;
 	}
 
@@ -166,7 +186,7 @@ NTSTATUS SplitLockDrvDispatchCreateClose(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 
 NTSTATUS SplitLockDrvDispatchDeviceControl(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 {
-	DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL, "SplitLockDrvDispatchDeviceControl\n");
+	DbgPrintDrv("SplitLockDrvDispatchDeviceControl");
 	UNREFERENCED_PARAMETER(DeviceObject);
 
 	PIO_STACK_LOCATION IrpStack = IoGetCurrentIrpStackLocation(Irp);
@@ -176,81 +196,68 @@ NTSTATUS SplitLockDrvDispatchDeviceControl(PDEVICE_OBJECT DeviceObject, PIRP Irp
 	switch (ControlCode)
 	{
 	case IOCTL_SPLITLOCK_CR0_AM_SET:
-		DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL, "SplitLockDispatchDeviceControl: IOCTL_SPLITLOCK_CR0_SET\n");
+		DbgPrintDrv("SplitLockDrvDispatchDeviceControl: IOCTL_SPLITLOCK_CR0_SET");
 
 #ifdef __INTRIN_H_
 		__writecr0(__readcr0() | 0x40000);
 #else
 		CR0AMEnable();
 #endif
-		DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL, "CR0 AM flag is set.\n");
-
+		DbgPrintDrv("CR0 AM flag is set.");
 		Status = STATUS_SUCCESS;
 		break;
 
 	case IOCTL_SPLITLOCK_CR0_AM_CLEAR:
-		DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL, "SplitLockDispatchDeviceControl: IOCTL_SPLITLOCK_CR0_CLEAR\n");
+		DbgPrintDrv("SplitLockDrvDispatchDeviceControl: IOCTL_SPLITLOCK_CR0_CLEAR");
 
 #ifdef __INTRIN_H_
 		__writecr0(__readcr0() & ~0x40000);
 #else
 		CR0AMDisable();
 #endif
-		DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL, "CR0 AM flag is clear.\n");
-
+		DbgPrintDrv("CR0 AM flag is clear.");
 		Status = STATUS_SUCCESS;
 		break;
 
 	case IOCTL_SPLITLOCK_EFLAG_AC_SET:
-		DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL, "SplitLockDispatchDeviceControl: IOCTL_SPLITLOCK_EFLAG_SET\n");
+		DbgPrintDrv("SplitLockDrvDispatchDeviceControl: IOCTL_SPLITLOCK_EFLAG_SET");
 
-#ifdef DBG
-		DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL, "EFLAGS register is accessible in both user and kernel mode.\n");
-#endif
-
+		DbgPrintDrv("EFLAGS register is accessible in both user and kernel mode.");
 		Status = STATUS_SUCCESS;
 		break;
 
 	case IOCTL_SPLITLOCK_EFLAG_AC_CLEAR:
-		DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL, "SplitLockDispatchDeviceControl: IOCTL_SPLITLOCK_EFLAG_CLEAR\n");
+		DbgPrintDrv("SplitLockDispatchDeviceControl: IOCTL_SPLITLOCK_EFLAG_CLEAR");
 		
-#ifdef DBG
-		DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL, "EFLAGS register is accessible in both user and kernel mode.\n");
-#endif
-
+		DbgPrintDrv("EFLAGS register is accessible in both user and kernel mode.");
 		Status = STATUS_SUCCESS;
 		break;
 
 	case IOCTL_SPLITLOCK_CR0_AM_READ:
-		DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL, "SplitLockDispatchDeviceControl: IOCTL_SPLITLOCK_CR0_READ\n");
+		DbgPrintDrv("SplitLockDispatchDeviceControl: IOCTL_SPLITLOCK_CR0_READ");
 		
 #ifdef __INTRIN_H_
 		if (__readcr0() & 0x40000)
 		{
-			DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL, "CR0 AM flag is set.\n");
+			DbgPrintDrv("CR0 AM flag is set.");
 		}
 		else
 		{
-			DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL, "CR0 AM flag is clear.\n");
+			DbgPrintDrv("CR0 AM flag is clear.");
 		}
 #else
-		DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL, "IOCTL_SPLITLOCK_CR0_AM_READ is only available wtih an intrinsic.\n");
+		DbgPrintDrv("IOCTL_SPLITLOCK_CR0_AM_READ is only available wtih an intrinsic.");
 #endif
-
 		break;
 
 	case IOCTL_SPLITLOCK_EFLAG_AC_READ:
-		DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL, "SplitLockDispatchDeviceControl: IOCTL_SPLITLOCK_EFLAG_READ\n");
+		DbgPrintDrv("SplitLockDispatchDeviceControl: IOCTL_SPLITLOCK_EFLAG_READ\n");
 
-#ifdef DBG
-		DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL, "EFLAGS register is accessible in both user and kernel mode.\n");
-#endif
-
+		DbgPrintDrv("EFLAGS register is accessible in both user and kernel mode.");
 		break;
 
 	default:
-		DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL, "SplitLockDispatchDeviceControl: IOCTL_XXX\n");
-
+		DbgPrintDrv("SplitLockDispatchDeviceControl: IOCTL_XXX\n");
 		Status = STATUS_INVALID_DEVICE_REQUEST;
 		break;
 	}

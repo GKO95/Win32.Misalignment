@@ -1,6 +1,12 @@
 #include "SplitLockApp.hpp"
 
-// Source code: https://archive.md/VZWAf
+void DbgPrintApp(const char* str) {
+#ifdef _DEBUG
+	std::cout << "[DEBUG] " << str << std::endl;
+#endif
+}
+
+// Windows Data Alignment on IPF, x86, and x64: https://archive.md/VZWAf
 int mswindows_handle_hardware_exceptions(DWORD code)
 {
 	printf("Handling exception\n");
@@ -20,7 +26,7 @@ int main() {
 	hResult = SplitLockAppIntialization(&GUID_DEVINTERFACE_SPLITLOCK);
 	if (hResult != S_OK)
 	{
-		std::cout << "SplitLockAppIntialization failed." << std::endl;
+		DbgPrintApp("SplitLockAppIntialization failed.");
 		return hResult;
 	}
 
@@ -28,7 +34,7 @@ int main() {
 		SplitLockAppDeviceIoControl(IOCTL_SPLITLOCK_CR0_AM_SET);
 		SplitLockAppDeviceIoControl(IOCTL_SPLITLOCK_EFLAG_AC_SET);
 
-		// Source code: https://archive.md/VZWAf
+		// Windows Data Alignment on IPF, x86, and x64: https://archive.md/VZWAf
 		__try
 		{
 			char temp[10];
@@ -70,7 +76,7 @@ HRESULT SplitLockAppIntialization(const GUID* ptrGuid) {
 		dwIndex++;
 	}
 
-	std::cout << "[DEBUG] EnumDeviceInterface count: " << dwIndex << std::endl;
+	std::cout << "EnumDeviceInterface count: " << dwIndex << std::endl;
 	if (dwIndex == 0)
 	{
 		std::cout << "No device found." << std::endl;
@@ -88,7 +94,7 @@ HRESULT SplitLockAppIntialization(const GUID* ptrGuid) {
 	pspDeviceInterfaceDetailData = (PSP_DEVICE_INTERFACE_DETAIL_DATA)malloc(dwSize);
 	if (pspDeviceInterfaceDetailData == NULL)
 	{
-		std::cout << "[DEBUG] malloc failed to allocate memory for SP_DEVICE_INTERFACE_DETAIL_DATA structure." << std::endl;
+		DbgPrintApp("malloc failed to allocate memory for SP_DEVICE_INTERFACE_DETAIL_DATA structure.");
 		return E_FAIL;
 	}
 	else
@@ -101,7 +107,7 @@ HRESULT SplitLockAppIntialization(const GUID* ptrGuid) {
 	pwszDevicePath = (PWCHAR)malloc((wcslen(pspDeviceInterfaceDetailData->DevicePath) + 1) * sizeof(WCHAR));
 	if (pwszDevicePath == NULL)
 	{
-		std::cout << "[DEBUG] malloc failed to allocate memory for DevicePath." << std::endl;
+		DbgPrintApp("malloc failed to allocate memory for DevicePath.");
 	}
 	else
 	{
@@ -111,7 +117,7 @@ HRESULT SplitLockAppIntialization(const GUID* ptrGuid) {
 	}
 
 	SetupDiDestroyDeviceInfoList(hDevInfo);
-	wprintf(L"[DEBUG] DevicePath: %ws\n", pwszDevicePath);
+	wprintf(L"DevicePath: %ws\n", pwszDevicePath);
 
 	hDevice = CreateFile(pwszDevicePath, GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
 	if (hDevice == INVALID_HANDLE_VALUE)
@@ -121,7 +127,7 @@ HRESULT SplitLockAppIntialization(const GUID* ptrGuid) {
 	}
 	else
 	{
-		std::cout << "[DEBUG] CreateFile succeeded." << std::endl;
+		DbgPrintApp("CreateFile succeeded.");
 	}
 
 	return hResult;
@@ -147,33 +153,30 @@ HRESULT SplitLockAppDeviceIoControl(DWORD dwIoControlCode) {
 	case IOCTL_SPLITLOCK_CR0_AM_SET:
 		if (!DeviceIoControl(hDevice, dwIoControlCode, NULL, 0, NULL, 0, &dwBytesReturned, NULL))
 		{
-			std::cout << "IOCTL_SPLITLOCK_CR0_SET failed." << std::endl;
+			DbgPrintApp("IOCTL_SPLITLOCK_CR0_SET failed.");
 		}
 		else
 		{
-#ifdef _DEBUG
-			std::cout << "[DEBUG] CR0 register is only accessible in kernel mode." << std::endl;
-#endif
+			DbgPrintApp("CR0 register is only accessible in kernel mode.");
 		}
 		break;
 
 	case IOCTL_SPLITLOCK_CR0_AM_CLEAR:
 		if (!DeviceIoControl(hDevice, dwIoControlCode, NULL, 0, NULL, 0, &dwBytesReturned, NULL))
 		{
-			std::cout << "IOCTL_SPLITLOCK_CR0_CLEAR failed." << std::endl;
+			DbgPrintApp("IOCTL_SPLITLOCK_CR0_CLEAR failed.");
 		}
 		else
 		{
-#ifdef _DEBUG
-			std::cout << "[DEBUG] CR0 register is only accessible in kernel mode." << std::endl;
-#endif
+			DbgPrintApp("CR0 register is only accessible in kernel mode.");
+
 		}
 		break;
 
 	case IOCTL_SPLITLOCK_EFLAG_AC_SET:
 		if (!DeviceIoControl(hDevice, dwIoControlCode, NULL, 0, NULL, 0, &dwBytesReturned, NULL))
 		{
-			std::cout << "IOCTL_SPLITLOCK_EFLAG_SET failed." << std::endl;
+			DbgPrintApp("IOCTL_SPLITLOCK_EFLAG_SET failed.");
 		}
 		else
 		{
@@ -189,7 +192,7 @@ HRESULT SplitLockAppDeviceIoControl(DWORD dwIoControlCode) {
 	case IOCTL_SPLITLOCK_EFLAG_AC_CLEAR:
 		if (!DeviceIoControl(hDevice, dwIoControlCode, NULL, 0, NULL, 0, &dwBytesReturned, NULL))
 		{
-			std::cout << "IOCTL_SPLITLOCK_EFLAG_CLEAR failed." << std::endl;
+			DbgPrintApp("IOCTL_SPLITLOCK_EFLAG_CLEAR failed.");
 		}
 		else
 		{
@@ -205,20 +208,18 @@ HRESULT SplitLockAppDeviceIoControl(DWORD dwIoControlCode) {
 	case IOCTL_SPLITLOCK_CR0_AM_READ:
 		if (!DeviceIoControl(hDevice, dwIoControlCode, NULL, 0, NULL, 0, &dwBytesReturned, NULL))
 		{
-			std::cout << "IOCTL_SPLITLOCK_CR0_READ failed." << std::endl;
+			DbgPrintApp("IOCTL_SPLITLOCK_CR0_READ failed.");
 		}
 		else
 		{
-#ifdef _DEBUG
-			std::cout << "[DEBUG] CR0 register is only accessible in kernel mode." << std::endl;
-#endif
+			DbgPrintApp("CR0 register is only accessible in kernel mode.");
 		}
 		break;
 
 	case IOCTL_SPLITLOCK_EFLAG_AC_READ:
 		if (!DeviceIoControl(hDevice, dwIoControlCode, NULL, 0, NULL, 0, &dwBytesReturned, NULL))
 		{
-			std::cout << "IOCTL_SPLITLOCK_EFLAG_READ failed." << std::endl;
+			DbgPrintApp("IOCTL_SPLITLOCK_EFLAG_READ failed.");
 		}
 		else
 		{
@@ -238,7 +239,7 @@ HRESULT SplitLockAppDeviceIoControl(DWORD dwIoControlCode) {
 		break;
 
 	default:
-		std::cout << "Invalid IoControlCode." << std::endl;
+		DbgPrintApp("Invalid IoControlCode.");
 		break;
 	}
 
